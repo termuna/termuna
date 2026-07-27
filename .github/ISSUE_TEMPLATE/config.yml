@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://termuna.com/docs/
+    about: Setup, configuration, and cloud continuity guides.
+  - name: Security reports
+    url: mailto:security@termuna.com
+    about: Please report vulnerabilities privately, not as public issues.
