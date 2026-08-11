@@ -39,7 +39,24 @@ Grab the latest from the
 |---|---|
 | Windows 10/11 (x64) | `termuna-setup-<version>-x64.exe` - per-user installer, no admin needed |
 | Linux (x86_64) | `termuna-<version>-linux-x86_64.tar.gz` |
-| macOS | coming soon |
+| macOS (Apple silicon) | `Termuna-<version>-arm64.tar.gz` - unzip into `~/Applications` |
+| Any machine with no screen | `termuna-daemon-<version>-<target>` - see below |
+
+### A machine you never sit at
+
+A server can hold sessions too. `termuna-daemon` is the same daemon the
+app runs, without the window: 10MB instead of 32, no GPU stack, no
+display. Join it to your account and it appears beside your laptops,
+ready to start sessions on, whether or not anything is running on it.
+
+```sh
+install -m755 termuna-daemon ~/.local/bin/
+TERMUNA_TOKEN=<a token this account already has> termuna-daemon login
+systemctl --user enable --now termuna-daemon
+```
+
+The desktop app needs none of this: it starts and owns its own daemon,
+as it always has.
 
 ## About this repository
 
