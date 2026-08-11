@@ -6,6 +6,17 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-11
+
+Nothing in the app changed. 0.2.0 was built and published by hand,
+which skipped the release pipeline and, with it, the unversioned asset
+names every download button on termuna.com links to: those links 404'd
+until they were uploaded after the fact.
+
+This version exists to go out the way releases are supposed to, through
+the tag. The binaries are 0.2.0's, with the version string moved on.
+
+
 ## [0.2.0] - 2026-08-11
 
 ### Added: a machine is a machine, with or without a session on it
