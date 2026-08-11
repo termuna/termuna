@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://termuna.com/icons/moonmark.png" width="80" alt="Termuna: the moon cursor">
+  <img src="assets/moonmark.png" width="76" alt="Termuna: the moon cursor">
 </p>
 
 <h1 align="center">Termuna</h1>
