@@ -6,6 +6,23 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-08-21
+
+### Changed: on Linux, the update installs itself - in a session you watch (ADR 0012)
+
+"Install" used to end at a file manager opening on a folder with a
+tarball in it, which is where the first person to try it reasonably
+asked what a terminal was doing showing them a folder. When the
+running binary is ours to replace (its directory is writable and lives
+under `$HOME`), Install now opens a fresh session named for the
+version and executes the install there: the exact `tar` command
+scrolls by in a pane, the closing line says what remains, and the
+session's scrollback is the install log. Nothing happens off-screen.
+A binary that is not ours (a distro package, an admin install) keeps
+the hands-off behaviour, because there "don't touch" is still the only
+honest answer. The artifact is SHA-256-verified against the signed
+manifest before any of this, as before.
+
 ## [0.2.2] - 2026-08-21
 
 ### Fixed: a daemon restart reconnects quietly instead of alarming you
