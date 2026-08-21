@@ -11,10 +11,13 @@ One session. Every screen.</p>
   <a href="https://github.com/termuna/termuna/releases/latest"><strong>Download</strong></a> ·
   <a href="https://termuna.com">termuna.com</a> ·
   <a href="https://termuna.com/docs/">Documentation</a> ·
+  <a href="https://termuna.com/changelog/">Changelog</a> ·
   <a href="https://github.com/termuna/termuna/issues">Issues</a>
 </p>
 
----
+<p align="center">
+  <img src="assets/hero.png" alt="The Termuna window with a live session, and the same session continued on a phone" width="100%">
+</p>
 
 ## What is Termuna
 
@@ -24,11 +27,40 @@ should survive the window, the reboot, and the machine. Sessions mirror
 end-to-end encrypted to Termuna Cloud, so you can continue them from a
 browser or phone while the host is up. The relay never sees plaintext.
 
-- Cold start under 300 ms, idle under 100 MB, keystrokes under 20 ms.
-- Local terminal is free forever, works fully offline, no account.
-- Cloud continuity is the paid part - and export is never held hostage.
-- SSH built in: profiles in an encrypted vault, shareable with your
-  team (also end-to-end encrypted; the server stores only ciphertext).
+The local terminal is free forever, works fully offline, and needs no
+account. Cloud continuity is the paid part - and export is never held
+hostage.
+
+## Highlights
+
+- **Fast, and measured.** Cold start under 300 ms, idle under 100 MB
+  with three tabs open, key press to glyph under 20 ms. These are
+  budgets, not aspirations: a change that regresses them does not ship.
+- **Sessions outlive everything.** The shells live in a small daemon,
+  not the window. Close the window, upgrade the app, restart the
+  daemon - your shells keep running and the window walks back into
+  them. A reboot restores the tree with every working directory
+  remembered.
+- **Continue from anywhere.** Open a session in the browser or on your
+  phone while the host is up. Typing goes back to the real shell.
+  Everything is sealed with xchacha20-poly1305 before it leaves your
+  machine; the server stores ciphertext it cannot read.
+- **Agents are first-class.** Run Claude Code as a managed session: the
+  conversation mirrors like any session, and when the agent stops to
+  ask permission for a tool call, you can read the exact call and
+  approve it from your phone.
+- **SSH built in.** Connection profiles live in an encrypted vault,
+  unlockable with one passphrase, shareable with a team - also
+  end-to-end encrypted, so the server holds only ciphertext.
+- **A calm place to work.** Nothing interrupts typing, nothing animates
+  for attention, no telemetry without an explicit opt-in. Updates are
+  offered as one quiet line: the app checks a signed manifest daily,
+  verifies every byte, and on Linux installs the update as a shell
+  command that runs in a session in front of you - the terminal is its
+  own installer.
+- **Servers count too.** A headless build of the daemon joins a
+  machine with no screen to your account, ready to host sessions
+  (see below).
 
 ## Downloads
 
