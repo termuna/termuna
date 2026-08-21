@@ -6,6 +6,555 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-21
+
+### Fixed: a daemon restart reconnects quietly instead of alarming you
+
+Pressing "Restart daemon" (or restarting it by hand) dropped every
+viewer for under a second, and the window treated that like any dead
+daemon: the connecting screen, in red, "connection to mux daemon
+lost". A lost daemon connection now walks back in silently first - the
+successor holds the same sessions, so the window lands back where it
+was, typed-but-unsent input still on screen - and the red screen is
+reserved for when coming back actually fails twice. The drawer foot's
+daemon line also refreshes on reattach instead of claiming "offline"
+until the next slow poll. And the handoff quiesce no longer depends on
+the signal mask the daemon happened to inherit: a spawner with SIGUSR1
+blocked degraded every restart to a ten-second stall; the reader
+thread now unblocks it for itself, and the sandboxed swap went from
+10s to 8ms.
+
+### Fixed: a daemon handoff no longer loses output a shell is streaming
+
+From the moment a successor daemon rebuilt the sessions until the
+predecessor exited, both were reading the same PTY masters: whatever
+the predecessor won died with its log, and whatever the successor won
+reused sequence numbers the relay had already seen and silently
+dropped. A repro streaming numbered lines through a handoff lost
+400-900 lines per swap; the "Restart daemon" button (ADR 0009) put
+this path in users' hands. The handoff is now serialized (ADR 0008
+amendment): the predecessor stops consuming and provably drains its
+pipeline before the snapshot, the successor starts reading only once
+the predecessor's exit closes the handoff socket, and a closing delta
+covers the seam. Cost: a streaming shell briefly blocks on write
+during the swap, which it cannot observe. Stressed on an otherwise
+saturated machine (16 busy cores), 30 of 30 handoffs mid-flood now
+replay every one of 50,000 numbered lines; the wire change is
+compatible in both directions with older builds. The Windows
+named-pipe handoff keeps the old semantics until it gets the same
+treatment.
+
+### Fixed: a tab's auto-title no longer misses the `cd` that goes quiet
+
+The cwd-based title refreshed on output behind a 2s throttle, and the
+first chunk after a `cd` is the terminal's echo of the command - sent
+before the shell has run it. That chunk spent the refresh on the old
+directory, the real output landed inside the closed window, and a
+shell that then went quiet kept its stale title until it next said
+something. Now the first throttled chunk of a burst schedules one
+recheck for when the window reopens, so the title lands within ~2s of
+the change no matter how quiet the shell goes. This is also what
+`tabs_auto_title_from_cwd_and_rename_pins` had been failing on since
+19.8: not runner load, a refresh race, which is why raising its
+deadline never helped.
+
+### Added: a live daemon can say which protocol it speaks
+
+`DaemonStatus` carries the TSP `PROTOCOL_VERSION` beside the crate
+version, `termuna-daemon status` prints it for the running process
+(with a nudge when the binary on disk speaks a newer one), and the
+desktop judges "restart the daemon" on both numbers. The crate version
+alone was the wrong signal in both directions: 0.2.1 spanned TSP v2
+and v3, so during this week's breaking rollout a daemon two protocols
+behind reported itself current, and a same-protocol rebuild reported
+itself stale. A daemon too old to report the field reads as protocol
+0, which correctly counts as stale.
+
+### Fixed: `Pty::disarm` no longer lets the writer hang up the shell
+
+portable-pty's writer politely writes `"\n"` + VEOF into the terminal
+when dropped, and in canonical mode VEOF is end-of-input: dropping a
+disarmed pty told the very shell being handed over to exit. The daemon
+never hit it (it steps aside with `process::exit`, so no Drop runs),
+but the adoption test did, intermittently, and the failures were
+misread as CI slowness. Disarm now neutralises the writer, and the
+tests assert on printf-assembled output the terminal echo cannot fake,
+which is what they believed they were asserting all along.
+
+### Changed: clients ask where to connect (ADR 0011)
+
+The relay address was a constant in every client:
+`wss://termuna.com/v1/session` compiled into the desktop and the
+headless daemon, derived from `location.host` on the web, derived from
+the API base on the phone. That works as long as there is one relay,
+forever. The day there is a second one - a node closer to Asia, a
+self-hosted deployment, staging - every installed copy would have to be
+replaced before it could be told.
+
+Sign-in now asks `GET /v1/config` and writes the answer into
+`[cloud] url` / `share_base`, so the compiled-in address is only a
+bootstrap: it is how a fresh install reaches the API the first time, and
+what the API answers is what is used from then on. `termuna-daemon
+login` does the same. Anything unrecognised keeps the address we already
+had, because a cloud that cannot answer this is still a cloud worth
+signing into.
+
+Session listings also carry an optional `relay_url`, and clients prefer
+it: a session lives on whichever relay its host bridged to. It is null
+for every session today; clients read it now so that the day it is not
+is a config change rather than a protocol change.
+
+Share links deliberately stay on the apex. `termuna.com/s/<id>` gets
+pasted into other people's chat histories and outlives every deployment
+decision we will ever make, so the region belongs in the routing layer
+and is resolved when the link is opened.
+
+Along the way the three sign-in paths (password, TOTP, browser) stopped
+carrying three copies of the same tail; they share
+`cloud_client::land_sign_in`.
+
+### Changed: the vault records the KDF that made it (ADR 0010)
+
+The Argon2id parameters that stretch a vault passphrase used to exist
+only as constants in three separate client source trees, with the server
+storing a salt and nothing else. That works exactly until they need
+changing, and they will: they are OWASP's *minimum* (19 MiB, t=2), and
+Argon2 costs are supposed to rise with hardware. Raising them without
+knowing what a given account key was sealed under is impossible, and
+the only repair would be asking every user to re-enter the passphrase
+that guards custody of their machines.
+
+An account now publishes `kdf` and `kdf_params` alongside `kdf_salt`,
+and clients derive with what the server returns rather than with their
+own constants. A recovery kit records its own, since one can be minted
+long after the account key was. Blobs from before this say nothing, and
+the historical values are the right answer for them, not a guess.
+
+Rust also stops inheriting its parameters from `Argon2::default()`: they
+are pinned explicitly, with a test asserting they still equal the crate
+default. Otherwise a dependency that changed its defaults in a minor
+release would change how every passphrase derives, and the symptom of a
+routine `cargo update` would be every existing vault reporting a wrong
+passphrase.
+
+An algorithm a client cannot derive is now refused by name instead of
+attempted anyway: "this vault uses X, update Termuna" rather than a
+wrong key presenting as a wrong passphrase.
+
+### Changed: sealed blobs name their own format (TSP v3)
+
+Every sealed blob now begins with a byte naming the construction that
+produced it: `version(1) || nonce(24) || ciphertext+tag` for content,
+and `version(1) || epk(32) || nonce(24) || box_ct` for a key wrapped to
+an account. The byte is checked before the key, and an unrecognised
+value is its own error rather than an authentication failure, so a blob
+from a newer Termuna reports "this needs a newer client" instead of
+something indistinguishable from a wrong passphrase.
+
+One byte per frame buys the ability to ever change how bytes are
+sealed. Without it that change is a flag day over data we no longer
+control: frames sit durably in the relay's database, a sealed account
+secret sits in the accounts database, and share links in other people's
+chat histories point at both. "Try the new format, fall back to the
+old" is not a substitute, because an AEAD failure looks exactly like a
+wrong key, so the fallback would silently retry every real tampering.
+
+`PROTOCOL_VERSION` is 3. The envelope did not change at all, which is
+precisely why the version had to: a v2 peer would route v3 frames
+flawlessly and then fail to decrypt every one of them, with no way to
+say why. **The relay, the desktop, the web client and the phone must
+be rebuilt and deployed together.**
+
+The web and Dart clients are now pinned to fixtures this repo emits
+(`cargo run -p termuna-sync --example format-fixtures` and
+`--example tsp-vectors`) rather than to their own past, or to a scratch
+cargo project the docs asked a maintainer to write from scratch.
+
+### Added: the app can tell you it is out of date (ADR 0009)
+
+Termuna had no way to reach an installed build. With `PROTOCOL_VERSION`
+refusing peers across major versions, that meant the day the relay was
+upgraded every desktop that had not been manually reinstalled would stop
+connecting, with no way to say why.
+
+Once a day the app now fetches a signed manifest from the public
+releases repo and, if a newer release exists, says so as one line in the
+status bar. Pressing it downloads that release's artifact for this
+platform and checks it against the SHA-256 the manifest promises;
+pressing it again hands the file to the OS (the per-user installer runs
+on Windows, the file manager opens on the verified archive on macOS and
+Linux). The app never downloads without being asked and never replaces
+its own binary.
+
+The manifest is Ed25519-signed and verified in-app against a key
+compiled into the build, with the private half on the maintainer's
+machine and never in CI: a stolen release token can publish files, but
+not files any installed app will accept. The signature covers the
+manifest as text and is checked before anything is parsed, and the
+trusted keys are a list the envelope selects from, so rotating a key is
+a rollout rather than a flag day.
+
+The check is a plain GET of a public file that carries nothing about the
+user; the version comparison happens locally. It is on by default with a
+switch in Settings → About, and it is deliberately not on the launch
+path: the first check waits until twenty seconds after the window is up,
+so cold start never waits on the network.
+
+Settings → About also grew the other half of an install: when the daemon
+is running an older build than the app (after an install it always is,
+and on Unix it is still holding the deleted inode of the old binary), it
+offers to restart it. The ADR 0008 handoff means the successor adopts the
+running shells rather than ending them.
+
+### Added: the sign-in screen speaks two-factor authentication
+
+An account with TOTP on (Termuna Cloud, Security page) used to be
+unable to sign in from the desktop at all: the password came back
+without a session and the screen had nothing to say. The password half
+now pauses on a code form - six digits from the authenticator app, or
+a recovery code - and finishes the sign-in exactly as before. The
+browser sign-in (Continue with Google/GitHub) needs nothing: the web
+form carries its own 2FA. `termuna-daemon login` explains that a 2FA
+account joins a server with a borrowed token instead of failing with
+"no session".
+
+### Added: sign in with Google or GitHub
+
+The sign-in screen now offers "Continue with Google" and "Continue with
+GitHub" whenever the cloud has those providers configured; without them
+the screen is unchanged. The app starts an app sign-in flow, opens the
+system browser to finish it, and polls the cloud until the browser half
+is done; the device token is minted at claim time and delivered exactly
+once, after which everything proceeds as a password sign-in would
+(config written, daemon flipped to cloud mode, vault passphrase asked).
+A cancelled or failed browser round-trip reports its reason on the
+sign-in screen, and a Cancel button stops the wait. This closes a real
+hole: an account created with Google on the website has no password, so
+the desktop could not sign into it at all.
+
+### Added: the daemon upgrades without killing sessions (ADR 0008)
+
+The `termuna-daemon` server now takes over a running daemon's sessions
+instead of refusing to start. On start it looks for a predecessor; if
+there is one it adopts its shells over a Unix socket (`SCM_RIGHTS`
+carries each pty master), the predecessor acks and steps aside, and the
+running shells keep running under the new binary. No predecessor means a
+cold start, so the same command does the right thing either way. The
+relay connection reconnects (a viewer sees a brief "reconnecting", no
+loss); a crash or reboot still resurrects as before, and Windows is
+unchanged. Rolling out new daemon code on a machine someone is using no
+longer ends their work.
+
+Under systemd the same holds for `systemctl --user restart`, where the
+old process is gone before the new one starts: the unit is now
+`Type=notify` with a file-descriptor store, so the daemon hands its pty
+masters to systemd on stop and reads them back from `LISTEN_FDS` on the
+next start (`KillMode=process` keeps the shells in the cgroup meanwhile).
+Verified end to end both ways: two hand-started daemons, and a real
+`systemctl --user restart`, each with the shell still running under the
+new instance (same pid).
+
+Windows does it too, by its own mechanism: the daemon drives ConPTY
+natively (portable-pty hides the handles it needs), and a successor
+`DuplicateHandle`s each pane's conin/conout pipe out of the predecessor
+over a sibling handoff pipe, adopts the still-running shell, and acks
+before the predecessor exits. One thing is lost there: the
+pseudoconsole's resize handle cannot be transferred, so an adopted
+terminal keeps its last size until the session is rebuilt.
+
+Live-verified on all three platforms with a real process surviving a
+daemon swap under the same pid: Linux (bash, plus a desktop full of
+`claude`/`htop`/`node`), macOS 26.2 (zsh), and Windows 10 (powershell).
+The desktop-spawned daemon now adopts on start, so it is covered too.
+
+### Added: a launch-time permission mode that survives a resurrect
+
+`CreateAgentSession`'s `AgentLaunch` now carries an optional
+`permission_mode` (one of `AgentCommand::REMOTE_PERMISSION_MODES`,
+`bypassPermissions` included). A remote client that starts an agent in
+bypass had, until now, only the runtime `SetPermissionMode`, which lasts
+the run and is gone after a resurrect. Setting the mode at launch lets
+the host write it into the session's meta, so the choice holds when the
+conversation is brought back. The host validates it (an unknown mode is
+dropped) and ignores it for a shell-typed agent. The field is additive:
+an older peer omits it and the host falls back to the CLI default.
+Starting an agent on another machine from the desktop now carries its
+bypass toggle the same way.
+
+### Fixed: a connection whose id another account holds still syncs
+
+Item ids are globally unique on the relay, so two independent accounts
+that ended up with the same connection id (a vault copied between them)
+collided: the server refused to let one account write an id the other
+already owned (a 403, correct, so no account can hijack another's item),
+and the desktop swallowed it. The connection sat local forever while
+the "synced" note stayed green. The push now re-keys its own copy on
+that 403 (a fresh id, its own independent item) and retries, dropping
+the old local id without a tombstone (the old id belongs to the other
+account, so deleting it is not ours to do). A push that fails for any
+other reason on the personal vault now surfaces instead of being
+shrugged off.
+
+### Fixed: a saved connection reaches the cloud, or says why not
+
+Saving or deleting an SSH connection while signed in but with the vault
+locked used to write to this disk and silently skip the sync: the host
+stayed local, the "synced" note kept its green tick, and nothing said
+the change never reached the cloud or your other devices. Now, when a
+vault action needs the passphrase, the app asks for it instead of
+falling back in silence, and a failed sync shows as a problem, not a
+quiet success. The connections subtitle no longer claims hosts are
+"sealed on this device": signed in, they are encrypted end to end and
+synced to every device you sign in on. There is one passphrase behind
+all of it (the account key that seals connections, sessions and device
+custody alike), so unlocking once covers everything through the server.
+
+### Added: start an agent on another machine
+
+"Start agent" now asks which machine should run it, exactly like "new
+session" does — but only when another machine is reachable; with just
+this device it skips straight to the directory chooser as before. Pick
+a remote machine and the directory field targets it (its own recent
+directories aren't shown, they're this machine's), the far daemon
+creates the agent and answers with its share link, and the
+conversation mirrors here. The launch-time bypass toggle stays on the
+local path (the wire launch carries no mode); a remote agent reaches
+bypass from its chat once it is up.
+
+A provider whose CLI isn't installed on *this* machine is still
+selectable when another machine is reachable (it may have it): the
+segment no longer greys out just because the local daemon lacks the
+binary. The machine picker then marks "this device" as "not installed
+here" and unpressable, steering you to a machine that has it. This is
+what makes the feature work from a Windows box that has no agent CLIs
+locally but is paired with a Linux machine that does.
+
+### Added: launch a managed agent in bypass-permissions mode
+
+A managed Claude session can now run without the per-tool permission
+asks, when the operator asks for it (ADR 0007). The start-agent card
+has a "bypass permissions" toggle, the chat mode menu (Shift+Tab) gains
+a fourth entry beside manual / edit / plan, and the mode is persisted:
+a resurrected unattended agent comes back unattended. `bypassPermissions`
+is no longer refused on the wire — custody (the account passphrase that
+gates reaching a session at all) is the boundary, not a mode the
+protocol pretends it can hide from its own operator; so a phone reaches
+it too, at runtime. Off by default, always a deliberate choice.
+
+### Fixed: an unfocused window shows the hollow cursor
+
+The cursor kept its solid, blinking self while the window sat in the
+background: the universal terminal signal for "typing lands here" shown
+somewhere typing could not land. Window focus now joins the pane-focus
+test: every pane of an unfocused window draws the hollow outline
+cursor, the blink timer stops while nobody is watching (and restarts
+on the visible half when focus returns).
+
+### Fixed: the paste-confirm card answers to the keyboard
+
+The multiline-paste question could only be answered with the mouse:
+Enter did nothing (worse: keys pressed while the card was open leaked
+into the shell underneath, and Esc dismissed the card's animation
+without cancelling the paste, leaving it stuck). Enter now pastes, Esc
+cancels, every other key stops at the card, and the card says so.
+Terminal hands live on the keyboard; a modal that ignores it is a bug,
+not a style.
+
+### Added: shells know they run in Termuna
+
+Spawned shells now carry `TERM_PROGRAM=termuna` (and
+`TERM_PROGRAM_VERSION`), the convention terminal-aware tools read.
+Claude Code's "auto" notification channel, for instance, is a whitelist
+of terminals it recognizes by exactly this variable (Apple Terminal,
+iTerm2, kitty, ghostty: everyone else gets silence): identifying
+ourselves honestly is the prerequisite for ever being on such lists.
+Until then, claude's `/config` → Notifications → `terminal_bell` is the
+setting that makes it ring here.
+
+### Added: links look like links under the mouse
+
+Hovering a URL in the grid (a detected http(s) one, or an OSC 8
+hyperlink an application drew) now underlines its span and turns the
+cursor into a pointer, the affordance every other surface taught your
+hand to expect. Ctrl+click opens it, as before. The underline stops
+where the URL does: trailing punctuation stays plain.
+
+### Added: focus reporting (?1004), so agent CLIs know when you left
+
+Applications that subscribe to focus reporting now hear `ESC[I`/`ESC[O`
+when their pane gains or loses the user's attention (window focus, tab
+switch and pane focus all count). Claude Code gates its "I'm done" bell
+on exactly this: in a terminal that never answers, it believes it is
+watched forever and never rings. With its notification channel set to
+`terminal_bell` (claude's `/config` → Notifications), a finished answer
+in an out-of-sight pane now lands as a desktop notification. An OSC
+9/777 notification caught by the daemon (the Attention frame) reaches
+the desktop the same way.
+
+### Added: a finished command notifies the desktop
+
+A command that ran at least 15 seconds in a pane you cannot see — a
+background tab, or any tab while the window is unfocused — now raises
+a desktop notification when it finishes ("finished after 2m 13s"),
+detected from the daemon's own busy-tab tracking: nothing is injected
+into the shell. Bells from out-of-sight panes (TUIs and agent CLIs
+ring one when they need you) notify under the same switch, which also
+respects the window's real focus now, not just the active tab.
+`notify_when_done` defaults to on; what you are looking at never
+notifies, and there is no sound. `notify_on_activity` (first output of
+a quiet background tab) stays opt-in.
+
+### Fixed: status emoji render in color
+
+✔️ ⚠️ 💡 📊 🐛 and friends — the emoji every CLI status line leans on —
+rendered as small monochrome glyphs: the monospace-first fallback
+(right for braille and CJK) let a symbols face win over the color
+emoji font. Emoji-class codepoints (the pictograph planes, UTS #51
+emoji-default singles, and anything carrying VS16) now route explicitly
+to the platform's color emoji face (Noto/Segoe/Apple), the same way PUA
+icons route to the bundled Nerd symbols. Bare text-presentation
+dingbats (✔ without VS16) stay in the text face, as in other terminals.
+Known engine-level limits, unchanged and shared with stock Alacritty:
+skin-tone modifiers, ZWJ sequences and flags render as their parts.
+
+### Fixed: dragging selects text in a Claude session
+
+Claude Code turns on mouse reporting with its first prompt, and it ends
+up in *any-motion* tracking (1003), because the mouse protocols are
+mutually exclusive and that is the last one it sets. The drag-takeover
+path (a left-drag in the normal screen becomes a local selection) was
+keyed on the *button-event* flag (1002), which 1003 had just replaced:
+so in a Claude session a drag reported the press and the release to the
+agent and selected nothing at all. The takeover now keys on mouse
+reporting itself, whichever protocol is active, including click-only
+(1000), where the drag previously vanished with no selection offered.
+Verified against a live Claude session: a drag mid-stream selects, the
+highlight rides the text into scrollback, and Shift still hands the
+drag to the app. (Note xterm.js-based terminals require Shift for this;
+a plain drag selecting is on purpose.)
+
+### Fixed: a resurrected session's shells no longer wake at 80×24
+
+A resurrected pane keeps its id, but its PTY spawned at the default
+grid, and the window's own bookkeeping believed the size was already
+sent, so nothing ever corrected it: prompts wrapped at 80 columns in a
+full-width window until a resize crossed a cell boundary. The daemon
+now spawns resurrected panes at the size the persisted model remembers
+(sizes now persist with the debounced flush, once per burst), the GUI
+forgets its size bookkeeping on every attach, and an integration test
+resizes, restarts and asks `stty` on both sides of the grave.
+
+### Fixed: resizing reflows in the same frame
+
+The grid waited for the daemon's layout round-trip before adopting a
+new size, so every resize had a window where output for the new PTY
+grid reflowed into an old mirror: the wrap artifacts you saw while
+dragging the window edge. The mirror now resizes optimistically to the
+window's own grid (the daemon remains authoritative: a smaller
+co-viewer still letterboxes via smallest-wins), background tabs adopt
+the authoritative size from layout snapshots, and the reattach repaint
+nudge re-reads the model so it can no longer clobber a resize that
+landed between its two halves.
+
+### Fixed: pane geometry is computed the way it is drawn
+
+Split sizing ignored the 6px divider grab strip, the broadcast banner's
+height was never budgeted, and a maximized pane kept the small grid of
+its split slot: each one a column or row the shell believed in and the
+window could not draw. One geometry now (and the banner has a fixed
+height so the view and the math cannot drift apart). Dragging a divider
+also stops writing the session to disk on every mouse-move: ratio
+updates are throttled to ~12/s with the final one guaranteed on
+release.
+
+### Fixed: selection is anchored to the text, not the glass
+
+Selection lived in screen coordinates and was cleared on every output
+frame, which made copying from a streaming TUI (a Claude session, a
+build log) practically impossible: the highlight vanished or slid onto
+different text. Selection now lives in the emulator, anchored to the
+buffer the way VTE and Alacritty do it: it scrolls with the content,
+survives streaming output, copies exactly what was swept (wide chars
+and soft-wraps handled by the engine), and triple-click grabs a whole
+wrapped line. Double-click word selection keeps the configurable
+`word_separators`.
+
+### Fixed: grid glyphs: icons, braille, CJK, accents
+
+Four rendering gaps that together read as "the font looks worse than
+the system terminal":
+
+- **Nerd icons**: Symbols Nerd Font Mono (MIT, ~2.5MB) is bundled and
+  every private-use codepoint routes to it explicitly, so prompt
+  glyphs, powerline segments and CLI-agent spinners render identically
+  on every machine instead of gambling on installed fonts.
+- **Fallback prefers monospace**: cosmic-text's `monospace_fallback`
+  feature is on, so glyphs the grid font lacks (braille, legacy blocks,
+  CJK) come from a mono face instead of a proportional one that
+  wobbles out of its cell.
+- **Whole pixels**: grid text was vertically centered, which parked the
+  baseline on a half pixel whenever the cell height was odd (the
+  default 12.5px × 1.65 = 21px did exactly that): a uniform vertical
+  blur, now gone: runs are top-aligned on integer cell tops.
+- **Wide glyphs and combining marks**: a double-width glyph's underline,
+  strikeout and background now span both columns, and zero-width
+  characters (combining accents, ZWJ sequences) reach the renderer
+  instead of being dropped.
+
+### Fixed: renaming a session takes the caret, and keeps the icon
+
+The row turns into a field for one purpose and then made you click it
+before you could type. It takes focus now, from the drawer's own rows
+and from another machine's alike.
+
+A remote row also lost its glyph the moment you started typing and got
+it back when you stopped: its editor was the field alone, while a local
+row's keeps the icon beside it. Both are the same shape now.
+
+
+### Fixed: closing the last tab of another machine's session closes it here too
+
+The tab went, the far machine ended the session, and its dead tab sat
+on screen waiting for something to notice.
+
+A mirror was never told it was over. When the far host says `Bye` the
+watching loop simply stopped watching: the mirror stayed in this
+daemon's registry holding the last tree it saw, so the window went on
+showing a session that had already ended somewhere else, and only a
+later poll shook it loose. A mirror now ends the way a local session
+ends, which is what tells the window and takes the row out of the
+registry, so closing a remote tab behaves like closing a local one.
+
+
+### Changed: a signed-in machine stays reachable with its window closed
+
+The idle exit applied to the desktop's daemon too, and that quietly
+undid what the device channel is for: fifteen minutes after closing
+Termuna, a computer that was still switched on stopped being listed,
+stopped accepting a new session, and took its dormant sessions out of
+reach with it. Before machines were addressable this cost nothing;
+now it is the difference between a promise and a footnote.
+
+Signed in means resident, on every platform. Signed out keeps the
+timeout: with no account there is nobody to be reachable for, and an
+offline user should not be left carrying a process for nothing.
+Checked continuously rather than at startup, so signing in mid-run
+keeps the daemon alive and signing out hands it back to the clock.
+
+### Fixed: a headless daemon stops quitting every fifteen minutes
+
+The daemon exits after fifteen idle minutes: the desktop spawns it and
+will spawn another when a window needs one, so a process left behind
+with nothing live is just a process left behind. On a server that rule
+inverts. Nothing is going to start it again, and "nothing live" is its
+resting state, which is the entire premise of being addressable at all.
+
+So it quit, systemd restarted it, and it read as `active` to anyone who
+looked: eight restarts in two hours, each dropping the device channel
+and anything running on it. `termuna-daemon` is resident now and says
+so at startup. The desktop's own daemon keeps the timeout.
+
+
 ## [0.2.1] - 2026-08-11
 
 Nothing in the app changed. 0.2.0 was built and published by hand,
