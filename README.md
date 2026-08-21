@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="assets/moonmark.png" width="76" alt="Termuna: the moon cursor">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark.svg">
+    <img src="assets/logo-wordmark-tile.svg" width="300" alt="termuna">
+  </picture>
 </p>
-
-<h1 align="center">Termuna</h1>
 
 <p align="center">A fast, lightweight terminal whose sessions follow you everywhere.<br>
 One session. Every screen.</p>
