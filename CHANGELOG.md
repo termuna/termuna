@@ -6,6 +6,68 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-08-25
+
+### Added: a .deb package, and an apt repository that carries its updates
+
+Linux gets a real package: `termuna-amd64.deb` on every release (built
+by cargo-deb from the same binary the tarball ships, with the desktop
+entry and icon in their proper places), and an apt repository at
+`termuna.com/apt` - GPG-signed, `signed-by`-pinned, served as static
+files by the site's own nginx. Add it once and Termuna updates with
+the rest of the system through `apt upgrade`. A package install lives
+in `/usr/bin`, which the in-app updater already treats as not its own
+(ADR 0012), so the two update channels never fight. The repository is
+signed on the maintainer's machine (`scripts/publish-apt.sh`), never
+in CI - the same custody rule as the update manifest key.
+
+### Added: a modal with edits asks before it discards them
+
+Esc, Cancel, or a click outside a modal used to close it no matter
+what it held: half a filled-in SSH host, a typed passphrase, a picked
+set of teammates - gone on one stray key. A dismiss that would lose
+typed input now stops at a small question - keep editing, or discard -
+and esc on the question itself keeps editing, so the safe answer is
+the easy one. Pristine forms and confirm dialogs close exactly as
+before: the question only exists when there is something to lose.
+
+### Fixed: the Windows installer no longer kills your sessions
+
+Upgrading on Windows ran `taskkill /f /im termuna.exe` before copying
+the new build - ending the window, the daemon, and every running
+session mid-install, the exact thing the product promises never to do.
+NTFS allows renaming a running executable, so the installer now moves
+the old build aside (`termuna.exe.old`) and lays the new one down
+without touching a single process: the window picks the new build up
+on its next launch, the daemon on its next restart, where it hands its
+shells over instead of losing them. The app sweeps the leftover `.old`
+on a later start once nothing runs from it. Verified live on the
+Windows test machine: a silent upgrade over a running instance left
+both processes untouched, and the relaunched window attached to the
+surviving daemon. Uninstall still ends the processes, because there
+ending them is the point.
+
+### Fixed: a URL in parentheses is a link again
+
+`(https://...)` - the way agents and docs print links - hovered as
+nothing: the opening paren is a legal URL character, the detector
+swallowed it, and the "starts with http" check then threw the whole
+match away. The link is now anchored on the scheme, so the surrounding
+prose punctuation stays prose, and a trailing `)` is only trimmed when
+the URL's own parentheses do not balance (a Wikipedia-style path keeps
+its parens). Hover underlines exactly what ctrl+click opens, including
+under a TUI that owns the mouse.
+
+### Changed: the daemon's health moved to the continuity panel
+
+It was squeezed under the account name in the sessions drawer's foot,
+three lines deep in the narrowest corner of the window, while the
+continuity panel - the column that already holds the machine facts -
+had the room. The daemon block now sits there, above the encryption
+line: a calm dot and uptime when healthy, and when the daemon is an
+older build, the row itself is the restart button. The drawer's foot
+goes back to being about the account: name and email, nothing else.
+
 ## [0.2.3] - 2026-08-21
 
 ### Changed: on Linux, the update installs itself - in a session you watch (ADR 0012)
