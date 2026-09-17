@@ -70,7 +70,7 @@ Grab the latest from the
 
 | Platform | File |
 |---|---|
-| Windows 10/11 (x64) | `termuna-setup-<version>-x64.exe` - per-user installer, no admin needed |
+| Windows 10/11 (x64) | not published yet: the installer returns once it is code-signed, so nothing unsigned is offered |
 | Linux (x86_64) | `termuna-<version>-linux-x86_64.tar.gz` |
 | macOS (Apple silicon) | `Termuna-<version>-arm64.tar.gz` - unzip into `~/Applications` |
 | Any machine with no screen | `termuna-daemon-<version>-<target>` - see below |
