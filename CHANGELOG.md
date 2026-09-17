@@ -6,6 +6,34 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-09-17
+
+### Fixed: after an update the app no longer flickers on "connecting to mux"
+
+Installing a new build leaves the old daemon running, still holding
+your shells, and on macOS the update never restarted it. The new window
+sent that daemon a frame it had no name for, the daemon dropped the
+connection, and the window walked back in once a second, forever,
+showing the connecting screen between every attempt and never staying
+long enough to reach the About screen's "Restart daemon". Three
+things changed. The window now restarts a daemon that is behind its
+own build by itself, once, the moment the daemon says its version
+(the ADR 0008 handoff, so the shells come along). The daemon skips a
+frame it cannot decode instead of ending the attachment. And an attach
+the daemon drops within seconds no longer refills the quiet reconnect
+allowance, so if the loop ever recurs it ends on the connecting
+screen naming the failure instead of flickering. A daemon newer than
+the app is left alone.
+
+### Fixed: signing out clears the other devices' sessions from the drawer
+
+The drawer kept listing the account's other machines and their
+sessions after a sign-out, because nothing refreshes that list while
+signed out, and the daemon kept mirroring any of them you had opened.
+Both go with the account now: the lists are emptied on sign-out and
+the daemon ends every mirror the moment it is told there is no account.
+Your own sessions stay, as before.
+
 ## [0.2.8] - 2026-09-17
 
 ### Changed: Windows builds are not published until they are signed
@@ -4254,7 +4282,6 @@ A remote row also lost its glyph the moment you started typing and got
 it back when you stopped: its editor was the field alone, while a local
 row's keeps the icon beside it. Both are the same shape now.
 
-
 ### Fixed: closing the last tab of another machine's session closes it here too
 
 The tab went, the far machine ended the session, and its dead tab sat
@@ -4267,7 +4294,6 @@ showing a session that had already ended somewhere else, and only a
 later poll shook it loose. A mirror now ends the way a local session
 ends, which is what tells the window and takes the row out of the
 registry, so closing a remote tab behaves like closing a local one.
-
 
 ### Changed: a signed-in machine stays reachable with its window closed
 
@@ -4297,7 +4323,6 @@ looked: eight restarts in two hours, each dropping the device channel
 and anything running on it. `termuna-daemon` is resident now and says
 so at startup. The desktop's own daemon keeps the timeout.
 
-
 ## [0.2.1] - 2026-08-11
 
 Nothing in the app changed. 0.2.0 was built and published by hand,
@@ -4307,7 +4332,6 @@ until they were uploaded after the fact.
 
 This version exists to go out the way releases are supposed to, through
 the tag. The binaries are 0.2.0's, with the version string moved on.
-
 
 ## [0.2.0] - 2026-08-11
 
@@ -4352,7 +4376,6 @@ a key of its own and publishes it wrapped to the account, exactly as a
 session's content key is: the relay stores a blob it cannot read, and a
 stolen device token buys what it bought before.
 
-
 ### Added: the account's other sessions are yours to manage
 
 Rename, kill and wake now reach the machine a session actually runs on.
@@ -4395,7 +4418,6 @@ speaking to one means speaking through something it already holds open,
 and one holding nothing cannot be asked to start anything. Nor is a
 session offered as that conduit unless this device holds its key, since
 the question is sealed to it.
-
 
 ### Fixed: macOS stops asking for the keychain on every launch
 
@@ -4948,7 +4970,6 @@ full. The viewer gets one clean frame, drawn by the program, at the
 right size, and the shell history from before is intact underneath,
 back on screen the moment the program exits.
 
-
 ### Added: eleven things a daily-driver terminal is expected to have
 
 Surveyed against Tabby (the terminal the maintainer was switching
@@ -4993,7 +5014,6 @@ ratio) that lifts unreadable foregrounds: the fix for a scheme's own
 dark blue on a dark background. Off by default at 1.0: a colour
 scheme is its author's work until the user says otherwise.
 
-
 ### Changed: the right button belongs to the terminal, always
 
 Right-clicking inside a full-screen TUI (Claude Code, vim) forwarded
@@ -5021,7 +5041,6 @@ status bar, in place of the session name: "the app owns the mouse ·
 hold shift to select, shift+right-click for the menu". It leaves
 when the button does. No popup, no toast: the line that was already
 there simply answers the question being asked.
-
 
 ### Fixed: a deleted (or revoked) shared vault now leaves the machine
 
@@ -5483,7 +5502,6 @@ plan.
   path you climbed, the filter has its magnifier inside it, and each
   group folds its own dotfiles away behind its own count.
 
-
 ### Changed: one way out, one settle, and no work for a click that changes nothing
 
 - The ⌂ button is gone from the tab strip. The rail's own **sessions**
@@ -5500,7 +5518,6 @@ plan.
 - Clicking the screen you are already on does nothing. It used to
   re-run that screen's loaders: a status line, a round trip to the
   daemon and a flicker, in exchange for no change.
-
 
 ### Added: a live session keeps the rail
 
@@ -5520,7 +5537,6 @@ plan.
   going: the rail on the way into a session, the full sidebar on the
   way back, so the sidebar no longer blinks out and back between two
   screens that both have one.
-
 
 ### Added: the sidebar collapses to a rail
 
@@ -5542,7 +5558,6 @@ plan.
 - The choice is remembered (`[ui] sidebar_collapsed`). A layout you
   chose that every launch undoes is not a choice.
 
-
 ### Changed: settings, laid out the way the design draws it
 
 - All four sections are the mockup's `.sr` rows now: the name of the
@@ -5557,7 +5572,6 @@ plan.
   (`0.1.0 · linux-x86_64 · iced 0.14 / wgpu`), what the app is, and the
   three promises ticked off: offline-first, no telemetry unless you
   opt in, the relay never sees plaintext.
-
 
 ### Added: the account screen the design asks for
 
@@ -5578,7 +5592,6 @@ plan.
 - Session sync is a setting you can turn off from the app now. It
   writes `[cloud] enabled` and tells the running daemon at once, rather
   than waiting for a restart to become true.
-
 
 ### Changed: the sidebar's foot is the mockup's
 
@@ -5607,7 +5620,6 @@ plan.
   and a stale daemon still gets its extra line, because only that case
   needs an instruction.
 
-
 ### Changed: the host card is quieter, its menu is the app's own
 
 - Clicking **⋯** on an SSH host (or right-clicking the card) now opens
@@ -5627,7 +5639,6 @@ plan.
   dozen cards is noise; the glyph and the name take the luna accent
   instead, which is the same "this one" the rest of the app uses.
 
-
 ### Added: a vault you made is a vault you can unmake
 
 - Shared vaults had no way out: the desktop could create one, share it
@@ -5646,7 +5657,6 @@ plan.
   contradict it. The personal vault is refused outright: it is where
   the other vaults' connections land.
 - **members** now opens in the same card as the rest of the app.
-
 
 ### Changed: one modal, one input, everywhere
 
@@ -5670,7 +5680,6 @@ plan.
 - The cloud-vault line under **Search hosts** ("synced 7
   connection(s)…") had no space above it and read as the search box's
   error message. It now sits in its own row behind a live dot.
-
 
 ### Changed: sessions no longer come back on their own (ADR 0006)
 
@@ -5982,7 +5991,6 @@ plan.
   with mouse reporting on, which is how a selection could exist with no
   reachable way to copy it.
 
-
 ### Added
 
 - TSP grows a daemon-query channel (`Query`/`QueryReply`, additive):
@@ -6045,7 +6053,6 @@ Everything below shipped in it.
   markdown and allow selection, so on desktop we chose selection. (The
   web viewer keeps rendered markdown AND native selection.)
 
-
 ### Added: select part of a chat message; compaction shows for any provider
 - Desktop chat: each message has a "select" toggle that turns it into a
   read-only editor so you can highlight and copy just part of it
@@ -6055,7 +6062,6 @@ Everything below shipped in it.
   provider: detected from the continuation-summary preamble as well as
   Claude's /compact command.
 
-
 ### Fixed: slash menu typing; web chat text is selectable
 - Typing after "/" in the chat composer now works: the command menu
   floats over the composer (as a constant overlay layer) instead of
@@ -6064,7 +6070,6 @@ Everything below shipped in it.
 - Web chat: message text is selectable: select any part and copy it
   natively; the per-message copy button is gone.
 
-
 ### Added: /compact (and slash commands) show in the chat
 - Running `/compact` now draws a "⟳ conversation compacted" divider in
   the chat lane (and `/clear` a "conversation cleared" one); other local
@@ -6072,19 +6077,16 @@ Everything below shipped in it.
   agent's transcript (system/local_command records): earlier the chat
   ignored these entirely. Desktop and web.
 
-
 ### Changed: working directory uses a native folder picker
 - In the "start agent session" chooser, the working-directory field is
   now a click target that opens the native folder picker, prefilled at
   the current path.
-
 
 ### Changed: nicer "start agent session" chooser + directory ask
 - The open chooser got a visual pass (glyph + title + description cards,
   subtle shadow, rounded) and now asks for a working directory when you
   start a NEW agent session: resuming a past conversation keeps its own
   folder, so it skips the field.
-
 
 ### Changed: cleaner picker: agents screen, scroll, copy feedback
 - The agents screen dropped the model chips and directory input (they
@@ -6096,7 +6098,6 @@ Everything below shipped in it.
 - The chat copy button flashes "copied" in place after a click
   (desktop and web).
 
-
 ### Added: MCP server management (picker "mcp servers")
 - A new picker section lists, adds, and removes the MCP servers your
   agents use, per provider (Claude Code, Codex, Gemini): reading and
@@ -6106,20 +6107,17 @@ Everything below shipped in it.
   or a remote one (URL). Daemon-side (`McpList`/`McpAdd`/`McpRemove`)
   so the web can reuse it later.
 
-
 ### Added: command palette (Ctrl/Cmd+K)
 - A fuzzy command palette opens from anywhere with Ctrl/Cmd+K: jump to
   a session by name, start a local or agent session, open connections
   or settings, and (in a session) switch chat/terminal, new tab, or
   back to the picker. Arrow keys + Enter, Esc closes.
 
-
 ### Added: agent chat composer: slash menu + copy
 - Typing "/" in the chat composer opens a menu of the provider's common
   commands (/compact, /clear, /model, /cost, /status…): pick one to
   drop it in. Every assistant (and user) message has a quiet copy
   button. Desktop and web.
-
 
 ### Added: agent chat shows tool activity, thinking, and token use
 - The chat lane is no longer just text: each tool call renders a card
@@ -6128,7 +6126,6 @@ Everything below shipped in it.
   appear as muted "⤷ result" blocks (clipped). Reasoning shows as a
   muted "thinking" line. A running **token count** sits in the chat
   header. Desktop and web.
-
 
 ### Fixed: agent chat kept up with compaction; less noise
 - The chat lane no longer freezes when the agent conversation is
@@ -6140,7 +6137,6 @@ Everything below shipped in it.
 - The chat drops CLI machinery that isn't a human turn: background-agent
   task-notifications and local slash-command echoes no longer appear as
   message bubbles.
-
 
 ### Added: rich replies + images in the agent chat
 - Assistant replies in the agent chat (desktop and web) now render as
@@ -6248,7 +6244,6 @@ Everything below shipped in it.
   title in a tooltip once truncated, and below ~30px/tab the strip
   switches to "active tab + dropdown" instead of unreadable slivers.
 
-
 ### Fixed: tab strip is responsive; every tab closable on hover
 - Ten tabs pushed the files/home buttons off-screen: tab widths were
   fixed. Tabs now share the space left of the right-side controls and
@@ -6309,7 +6304,6 @@ Everything below shipped in it.
 - With no live sessions and no attached viewers for 15 minutes, the
   daemon exits. Dormant sessions stay on disk; the next launch spawns a
   fresh daemon that loads them.
-
 
 ### Added: Windows sessions survive the window (named pipes)
 - The mux daemon now runs out-of-process on Windows too, over a per-user
