@@ -6,6 +6,21 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-17
+
+### Fixed: a session whose share link was revoked before today opens on the phone again once the daemon reconnects
+
+A session that had a share link stopped rotated its content key, and
+the relay, which keeps a bounded tail of each session's history, used
+to trim the rotation frame with everything else after a while. A phone
+or the dashboard opening such a session fresh had the root key and no
+way to the current one, so the session never painted. The relay keeps
+rotation frames from now on; for a session it had already trimmed, the
+daemon now re-publishes its rotations when it reconnects, told by the
+relay which ones it lost (`Welcome.tail_from`), so the chain is whole
+again and the session opens. Nothing to do: the daemon does it on its
+next connect after the relay says.
+
 ## [0.2.6] - 2026-09-17
 
 ### Fixed: your own phone and the web dashboard type into your sessions again
