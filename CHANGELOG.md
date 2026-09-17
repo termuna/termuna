@@ -6,7 +6,39 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-09-17
+
+### Fixed: a mirrored session whose share link was revoked opens again on another desktop
+
+Opening one of your other machines' sessions on this desktop went
+through this machine's daemon, which held the session's root key and
+nothing that could open a key rotation: every revoke of a share link
+rotates the session's content key, and the new secret is sealed to
+your account's vault key, which the daemon does not hold on purpose.
+So a session revoked even once showed "never opened" here, forever.
+The daemon now asks the window, which holds the unlocked vault, and
+the window hands it the key for that epoch and nothing more, exactly
+what a share link holder gets. Frames that arrive sealed ahead of the
+key wait in order and open when it lands, so the layout and the
+scrollback come out whole. If the vault is locked in this window the
+session says so once, in the pane, and follows as soon as you unlock
+it.
+
 ## [0.2.10] - 2026-09-17
+### Fixed: the other machines' sessions no longer lock every few minutes, and the app stops asking the cloud every five seconds
+
+With the sessions drawer open, every desktop signed in asked the
+cloud for the account's other machines every five seconds, behind the
+daemon health poll, and each round fetched the account key blob and
+derived the key from the passphrase again (an Argon2 run each time).
+One lost request in that stream sealed every row and asked for the
+passphrase the window already held, which on a busy network read as
+the vault locking itself every few minutes. The quiet refresh now asks
+at most once every twenty seconds (the minute tick and the moments
+that change the answer, a session opened elsewhere or the vault
+unlocked, still ask at once), and a round that could not say keeps
+the last answer on screen. A passphrase the cloud calls wrong still
+seals every row, as it must.
 
 ### Added: "Check now" on the About screen
 
