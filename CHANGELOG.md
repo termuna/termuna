@@ -6,6 +6,17 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-09-17
+
+### Added: "Check now" on the About screen
+
+Settings, About asks GitHub once a day, so for most of a day after a
+release it could only say "0.2.4 is the newest release we know of" and
+offer no way to ask again. The updates line now carries a "Check now"
+button that runs the same signed check at once, shows "Checking..."
+while it is out, and lands the answer on the same line; a failed check
+offers it beside Dismiss. It is held to one request every ten seconds.
+
 ## [0.2.9] - 2026-09-17
 
 ### Fixed: after an update the app no longer flickers on "connecting to mux"
