@@ -6,6 +6,79 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-17
+
+### Fixed: your own phone and the web dashboard type into your sessions again
+
+Since the one-keyboard rule landed (2026-09-07), every keystroke that
+came through Termuna Cloud was treated as a guest's, and a guest does
+not hold the keyboard while your desktop does: your own phone typed
+into nothing. The relay now says who a keystroke came from (your own
+device or a share link) and the daemon writes your own devices as one
+party with the desktop, so the phone types whenever your desktop
+would. A share-link guest is unchanged, and now carries its own name
+in the keyboard block instead of "the link it came in on". Needs a
+relay that stamps its frames; against an older relay everything stays
+exactly as it was.
+
+### Changed: a release publishes, signs and reaches apt with nobody at a keyboard
+
+The three steps that used to wait for the maintainer after a green
+release build (publishing the draft as latest, signing the update
+manifest installed apps check, rebuilding the apt repository on
+termuna.com) are the last job of the release workflow now, with the
+keys held by the `release` environment (ADR 0020). A tag cut by the
+release train is downloadable, offered to installed apps and on apt by
+the time the workflow is green, and the workflow can be rerun in a
+publish-only mode on a tag whose draft is already complete. The apt
+repository's master copy lives on the server: the publish script pulls
+it first and refuses to push over a tree it could not read.
+
+### Fixed: a bad split ratio could destroy a session for good
+
+Dragging a divider inside a very narrow or deeply nested split could
+produce a ratio that is not a number. Nothing refused it: it was stored,
+written to the session file as `null`, and from that moment no viewer
+could decode the layout. On the next start the daemon skipped the file as
+unreadable, so the session and its scrollback were gone while the file
+sat on disk. A ratio that is not a finite number is now refused by the
+session model and by the daemon before it reaches the model, and a
+snapshot that already carries a broken ratio decodes to an even split
+instead of costing the whole session, so sessions corrupted by an older
+build come back on the next start.
+### Fixed: the buttons in the amber strips fit their row
+
+"use my size" in the grid-held line and "Take it back" in the keyboard
+holder's strip were drawn at the full control height inside a row two
+pixels shorter than that, so each pill's border sat on the strip's own
+border, top and bottom. Both are the small inline control now, the size
+the design always gave them, with a pixel of air on each side; the
+strips keep their height and the grid loses nothing.
+
+### Fixed: a phone that comes back from the background is listed once
+
+The continuity panel showed "Termuna mobile (iPhone) · viewing now"
+twice, and the grid-held line counted the ghost as "and 1 more",
+whenever the phone app had been backgrounded and reopened: the relay
+keeps a viewer row per socket, and iOS leaves the old socket half open
+until the network gives up. The panel now lists one row per device
+(by the relay's device id when it sends one, else by name), the newest
+attach winning, so the phone reads as one screen however many sockets
+it has been on. Two nameless share-link viewers still count as two.
+
+### Changed: the macOS app is signed with a Developer ID certificate and notarized by Apple
+
+`Termuna.app` from a release now opens on double-click on any Mac:
+Gatekeeper finds a Developer ID signature with the hardened runtime and
+a stapled notarization ticket, so there is no right-click Open and no
+quarantine dance. The release pipeline does all of it on our own runner
+(rcodesign signs, submits to Apple's notary service and staples, from
+Linux), so the macOS archive is attached to every draft release beside
+the Linux and Windows ones instead of being built and uploaded by hand.
+One consequence for anyone who ran an earlier release: the signing
+identity is new, so the keychain asks once more for the vault item and
+then holds.
+
 ## [0.2.5] - 2026-09-16
 ### Fixed: the release runs on our own runner, and cross-builds the Linux artifacts to x86_64
 
