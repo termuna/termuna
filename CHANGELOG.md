@@ -6,6 +6,17 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-17
+
+### Changed: Windows builds are not published until they are signed
+
+The Windows installer was unsigned, so every install went through
+SmartScreen's "unknown publisher" warning. A release now ships Linux
+and macOS (signed and notarized) only; the Windows installer returns
+the moment it can be signed. A Windows install of an earlier version
+is told there is no update rather than offered a file, and
+termuna.com's Windows button says the same.
+
 ## [0.2.7] - 2026-09-17
 
 ### Fixed: a session whose share link was revoked before today opens on the phone again once the daemon reconnects
