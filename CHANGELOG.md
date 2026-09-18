@@ -6,6 +6,22 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-09-18
+
+### Fixed: the ctrl+r palette fits its card at every window width
+
+On a window a little wider than the palette's card, the scope chips
+row ran past the card's edge with the match count outside it, the
+selected command's "insert" tail was cut off at the edge, and the
+foot's key hints, laid out as columns, folded the last one into a
+sliver six lines tall. Now the card follows the window down to 320px,
+the chips wrap onto further lines under the count, which keeps its
+place at the end of the first, a long command is cut with an ellipsis
+before its tail is, and the foot is one wrapping line of unbreakable
+key and label pairs. When even two lines cannot hold them, hints go
+in a fixed order: the "ctrl+r again" reminder first, then tab, then
+navigate, then ctrl+enter; esc and enter always stay.
+
 ## [0.2.13] - 2026-09-18
 
 ### Changed: the app replaces its own install on macOS and Linux
