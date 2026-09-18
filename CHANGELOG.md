@@ -6,6 +6,29 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-09-18
+
+### Fixed: Ctrl+Tab walks to the next tab, the way the docs have always said
+
+With three tabs open, Ctrl+Tab bounced between two of them forever and
+the third was unreachable by keyboard. The defaults bound `ctrl+tab`
+twice, to `last_tab` first and to `next_tab` seven lines later, and the
+matcher runs the first binding it finds, so the documented next-tab key
+was dead code and nothing advanced a tab at all. Ctrl+Tab is now next
+tab and Ctrl+Shift+Tab is previous tab, exactly what
+termuna.com/docs/keybindings publishes. The MRU toggle, back to the tab
+you came from, keeps working and moves to Ctrl+Shift+L. A test now
+refuses any duplicate combo in the defaults instead of pinning this one,
+which is the check that would have caught it when it was introduced.
+
+An install that has run an earlier build carries the old key in its own
+config file, because the app persists the whole keymap, so a new default
+alone would never have reached the machines with the bug. A stored
+`ctrl+tab = last_tab` that has no other home for the MRU toggle is the
+old default repeating itself, not a choice, and it is migrated to the
+new key once on load. A keymap that deliberately puts the toggle on
+Ctrl+Tab, or binds the combo to anything else, is left alone.
+
 ## [0.2.11] - 2026-09-17
 
 ### Fixed: a mirrored session whose share link was revoked opens again on another desktop
@@ -24,7 +47,6 @@ scrollback come out whole. If the vault is locked in this window the
 session says so once, in the pane, and follows as soon as you unlock
 it.
 
-## [0.2.10] - 2026-09-17
 ### Fixed: the other machines' sessions no longer lock every few minutes, and the app stops asking the cloud every five seconds
 
 With the sessions drawer open, every desktop signed in asked the
@@ -39,6 +61,8 @@ that change the answer, a session opened elsewhere or the vault
 unlocked, still ask at once), and a round that could not say keeps
 the last answer on screen. A passphrase the cloud calls wrong still
 seals every row, as it must.
+
+## [0.2.10] - 2026-09-17
 
 ### Added: "Check now" on the About screen
 
