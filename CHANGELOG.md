@@ -6,6 +6,33 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-09-18
+
+### Changed: the app replaces its own install on macOS and Linux
+
+Updating a Mac used to end with Finder showing you a tarball next to
+the app you were running; on Linux the app opened a session and ran
+`tar` in it. Now, when Termuna is installed under your home directory
+(`~/Applications/Termuna.app`, `~/.local/bin/termuna`), pressing
+Install in Settings, About downloads the release, checks it against
+the signed manifest as before, unpacks it beside the install, verifies
+the staged copy (on macOS the code signature and Gatekeeper's own
+assessment; on every platform that it answers the promised version),
+swaps it in atomically and relaunches. The About row says what is
+happening at each step, a build that fails a check is deleted and named
+there, and your running install is never touched before the new one
+has been proven. The old install stays beside the new one as
+`.previous` until the next launch. An install that is not yours to
+replace (`/usr/bin`, `/opt`, the system `/Applications`, a `.deb`) is
+handed to the OS exactly as before; Windows is unchanged.
+
+### Added: a DMG for the first install on a Mac
+
+The release carries `Termuna-<version>-arm64.dmg` beside the tarball:
+open it, drag Termuna onto the Applications link next to it. The image
+is signed with Developer ID and notarized like the app inside it.
+Installed apps keep updating from the tarball.
+
 ## [0.2.12] - 2026-09-18
 
 ### Fixed: Ctrl+Tab walks to the next tab, the way the docs have always said
@@ -28,7 +55,6 @@ alone would never have reached the machines with the bug. A stored
 old default repeating itself, not a choice, and it is migrated to the
 new key once on load. A keymap that deliberately puts the toggle on
 Ctrl+Tab, or binds the combo to anything else, is left alone.
-
 ## [0.2.11] - 2026-09-17
 
 ### Fixed: a mirrored session whose share link was revoked opens again on another desktop
