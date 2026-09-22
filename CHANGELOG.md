@@ -6,6 +6,262 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-09-22
+
+### Fixed: a sign-in question is now visible on the pane's own card and the sealed lane at once
+
+Board#329, QA finding 1. A host marked interactive on its card asked
+through the pane's own conversation, and every other SSH host asked
+through the daemon's sealed challenge lane; the two were mutually
+exclusive per host, so a round was never visible on the desktop card,
+a phone and the dashboard all at once, the headline property of the
+"keyboard-interactive answered anywhere" epic. Every SSH dial now
+registers on the daemon's one challenge lane, marked interactive or
+not: the pane's own card is a view of the same round the lane lists,
+fed by the lane rather than holding a conversation of its own, and
+answering from the pane, a phone or the dashboard passes the same
+one-answer-per-round gate and the same one-surface-at-a-time hold, so
+a phone holding the question refuses the pane's own answer by name
+until it is released. The interactive flag on a host's card still
+decides whether opening it parks the pane and dials off the lock
+rather than waiting for the dial, which is what it always meant for a
+person who might be a while. No wire or protocol change.
+
+Board#397, part 2 of the "keyboard-interactive answered anywhere"
+epic (board#396). A host whose server asks a question at sign-in works
+from the desktop now. The host card's authentication control has a
+fourth segment, "interactive", beside agent, password and key file: a
+fallback layered on the credential rather than a fourth choice, so it
+reads pressed beside one of the three, and the note under it says so.
+With it on, the daemon holds the conversation from part 1 for that
+host, and the question lands in the pane whose open caused the dial.
+
+The question is a card at the foot of that pane, the inert redial
+card with fields in it. It takes room of its own and the grid above
+gives up exactly that much, so the scrollback that says why the
+connection is being made is never covered and nothing is a modal over
+a live grid. The server's banner and instruction are quoted verbatim
+in mono under a rule, every line of a multi-line banner kept, because
+servers use the banner to say which code they want; a server that
+prints none gets no quote and the card is still whole. Each prompt is
+its own field, labelled with the server's own echo flag, "hidden" or
+"shown, the server asked", and masked exactly when that flag says so:
+a round with a hidden password and a visible token code shows both
+fields with both labels. The card is amber while the question waits,
+counts the engine's patience down, and says once that it is also
+answerable on your phone and the dashboard. Enter or Answer sends a
+copy of the fields to the daemon, which moves it into the engine's
+wiped buffers; the fields themselves are cleared only once the daemon
+has taken the answers, so a refusal (a stale round, a wrong count, a
+daemon that did not answer) leaves every field exactly as typed under
+the reason, and Enter sends nothing more while an answer is on its
+way. Cancel gives the sign-in up at that round. A round with no
+prompts is shown to be read and needs nothing. A second round replaces
+the first whole, with fresh fields and nothing typed carried over.
+
+Only the pane that leads the dial shows anything. A split, a new tab,
+a file browse or a port forward on the same host waits on that dial
+and joins its connection, exactly as the shared-connection rule
+(board#276) already has them do, so a second pane prints no card, no
+seam and no prompt. The daemon writes the ask and the outcome into the
+leading pane as seam rows: "bastion.corp.example is asking a question"
+above the card, and after the round "answered on this computer
+14:22:09, 2 seconds after it was asked" or "cancelled on this
+computer 14:24:03; nothing was sent". When another device answers
+first the card closes by itself and names the device and how long it
+took, so a card vanishing on its own never reads as a bug; this part
+renders that state, and the phone that produces it is part 3.
+
+The card turns warn red for one thing only: the server took the
+answers and refused them. That card prints the engine's own sentence
+from part 1, the count asked and answered, the rounds, and the remedy,
+verbatim, and offers "Answer again", which dials for a fresh round. A
+timeout, a cancel and a closed conversation stay amber: nothing failed,
+a person was not there. On such a host the inert pane's card offers
+"Answer again" instead of "Reconnect" too.
+
+The pane state `asking` is new on the layout snapshot, additive: a
+build older than this reads it as unknown, draws nothing for it and
+drops input to it, which is right for a question it cannot show. The
+question itself never rides the layout; a window asks the daemon for
+it over the local socket. No protocol change and no relay change.
+`docs/design/termuna-ui-v6.html` gains the challenge card in its five
+states (`?ask=one|two|read|elsewhere|refused`), the seams, the
+"waiting for you" corner tag and the host card's fourth segment
+(`?addhost=interactive`), verified by a headless render.
+
+Known limits: a host pane opened from a saved layout still dials
+without the conversation, so a layout's Duo host is refused by name
+until a later part; the file lane's own dial has no window to ask in
+and is refused the same way if it is the first thing to reach a cold
+host; two windows on one machine both read "answered on this
+computer", because the daemon has one local socket and cannot tell
+them apart; the widget that draws a field holds its own copy of the
+text while it is on screen, the same limit the engine states about
+the SSH library's buffers.
+
+Board#405, review findings 1 and 2 on the fix above. Once every SSH
+dial registers a conversation, not only a host marked interactive,
+two panes of the same session could each have their own question
+open at once, and the daemon still kept one slot for the whole
+session: a second pane's question silently displaced the first
+pane's own card, and settling either from a phone or the dashboard
+could close the wrong pane's card, leaving the other's question
+stuck on screen with no way to answer it locally any more. Each
+pane's question is now tracked by the conversation it belongs to,
+not by its round number, since every conversation counts its own
+rounds from 1: two panes with a question open are independent, and
+answering, declining, or one dial settling never touches the other
+pane's own card. The two sentences the desktop card showed for
+"somebody already answered" and "somebody else is answering" now
+read exactly as the phone and the dashboard already did.
+
+### Added: keyboard-interactive authentication, part 5 of 5 (the sealed lane)
+
+Board#400, the last part of the "keyboard-interactive answered
+anywhere" epic (board#329). Part 1 built the engine; the round a
+server was asking lived in the process that dialled it, so a phone or
+the dashboard had no way to see it, let alone answer it. Now the
+daemon registers every keyboard-interactive conversation it dials on
+its own challenge lane, and the daemon-query lane, which rides inside
+the sealed envelope like every other daemon query, gained the
+vocabulary: what is being asked on this daemon right now (each round
+verbatim, the server's name, instruction and banner as sent, the
+banner present and empty when the server printed none, every prompt
+with the server's own echo flag, who is answering and how long is
+left), the answers to one round, a decline, and a claim and release
+that move who is answering between surfaces. Answering a round signs
+the connection in; the next round arrives on the same lane.
+
+Exactly one answer set reaches the server per round: a second answer
+to the same round, an answer to another round, and an answer with the
+wrong number of strings are each refused by name with the facts (the
+round, the counts), never padded, cut or queued. Who answers is the
+one-keyboard rule with a different noun: the first surface to act
+holds the conversation, a claim takes it and never asks, a release
+hands it back, and any other surface is told who holds it. A refusal
+carries facts only; the sentence a surface prints is the engine's own
+from part 1, so a pane, a phone and the dashboard say the same words.
+
+An answer rides only inside the sealed envelope, is never persisted or
+synced, prints as a count wherever it could be logged, and moves
+straight into the engine's wiped buffers on arrival. Proven against a
+scripted keyboard-interactive server: the round is listed verbatim,
+two rounds sign in through the lane, a decline ends the sign-in with
+the engine's cancelled sentence word for word, and a test reads every
+log line the exchange writes at every level and finds no answer in
+them. Additive on the wire, no `PROTOCOL_VERSION` bump; the fixture
+vectors grew twelve keys and the phone and the website regenerate
+theirs. The daemon's own dials from a new tab, a split, a session
+created over the wire and a resurrection carry a conversation; a
+redial of a dropped link does not yet, and a host marked interactive
+on its card keeps asking through the pane's own card (board#397)
+rather than the lane. `docs/design/termuna-ui-v6.html` does not move.
+
+A dial that stops on a question never holds the session: it waits
+for a person, up to three minutes, off the session's state lock and
+off a runtime worker, so keystrokes, resizes and splits of the
+session's other panes keep flowing while a question waits, and a
+keystroke typed meanwhile is proven to come back echoed with the
+question still open. A new tab or a split on any SSH host now shows
+`connecting` while it dials and settles a dial that fails with
+Reconnect on offer, as a host marked interactive already did; a
+session created on an SSH host and a resurrected one still answer
+their dial's failure as their own. A round the engine has stopped
+waiting for, because its patience ran out or the dial ended, is no
+longer listed and is refused by name as no such challenge, rather
+than reported answered while nothing reached the server.
+
+### Added: keyboard-interactive authentication, part 1 of 4 (engine only)
+
+Board#396, part 1 of the "keyboard-interactive answered anywhere"
+epic. A server that asks a question at sign-in instead of taking a
+credential (Duo, Google Authenticator, a PAM challenge, an OTP, an
+expired password's "new password:") was unreachable: Termuna's SSH
+backend could not hold the conversation, so the configured credential
+was refused and the connection answered a bare "authentication
+failed". The backend speaks the method now. A host may be configured
+to go straight to it (the new `Interactive` credential beside password,
+key and agent), and a host configured with any other method falls back
+to it when the server refuses that method and lists
+keyboard-interactive among what it still accepts; a server that does
+not list it is never asked. Exchanges with more than one round, a
+password round followed by a code round, run to the server's yes.
+
+Every round reaches whoever answers it whole and verbatim: the host
+asking, the server's name and instruction text, the banner it printed
+before the first question (the empty string when it printed none), and
+each prompt with the server's own echo flag, never defaulted. That
+flag is the one a client is tempted to lose, and losing it is how a
+competitor came to type one-time passwords in plaintext on screen
+(Tabby #10793). Answers are handed to the wire once, as a copy, and
+the buffers Termuna holds them in are wiped the moment that copy has
+been made; the copy itself lives in the SSH library's own packet
+buffers and is not wiped by Termuna. Answers appear in no log line at
+any level. Two tests hold this to account: one reads every line the
+exchange writes, one reads the answer's own bytes at the moment they
+are freed after a real exchange and finds them zero.
+
+Nothing ends in "authentication failed" any more. Each way a sign-in
+can fail is its own typed refusal with its own sentence, produced by a
+pure function so a pane, a phone and the dashboard print identical
+words: the server asked N questions, got every answer and refused
+them; the server offers keyboard-interactive and it is not enabled for
+this host; no answer came within the three-minute bound; the server
+closed the conversation without a verdict; the credential was refused
+and the server offers no keyboard-interactive to fall back to. Each
+names the host, the method and the remedy. A credential with words of
+its own, an agent's trace, keeps them above the verdict.
+
+One conversation per connection, not per pane. The exchange happens
+where the connection is dialled, so further panes, file browses,
+transfers and forwards on the same host ask nothing. The daemon's
+connection registry stopped letting two panes racing on a cold host
+both dial: the first claims the dial, every later one waits on it and
+joins the connection it produces, or hears the same typed refusal, so
+two panes opened at once hold exactly one conversation. A dial whose
+leader stops before it settles (the dialer panicking partway) wakes
+every waiting pane with an error and leaves the host cold for the
+next dial, rather than leaving them waiting on a dial nobody is
+running. The round waiting for an answer is connection state,
+readable by another surface.
+
+This part is the engine only: no pane card, no phone, no dashboard,
+and no protocol change. Nothing in the desktop answers a server's
+questions yet, so a host that asks them is refused by name today and
+answered in part 2. `docs/design/termuna-ui-v6.html` does not move.
+
+### Fixed: the fuzzy tab switcher has a shortcut that works
+
+`ctrl+shift+space` was the default for two different features at once:
+pick mode's `pick_key` and the fuzzy tab switcher. The key ladder offers
+a press to `pick_key` before it looks at the keybinding table, so pick
+mode won every time and the tab switcher could not be opened at all on a
+default install, while the settings keybinding editor still listed it.
+The switcher now opens on `ctrl+shift+o`, pick mode keeps
+`ctrl+shift+space`, and the command palette (ctrl+k) has a "Jump to a
+tab by name" row so the feature is reachable without a shortcut at all.
+Anyone who had bound `tab_switcher` themselves keeps their own key. A
+test now refuses any default binding that lands on the default pick key,
+which is the collision no per-feature test could see.
+
+### Fixed: a closed pane takes its quiet watches with it
+
+Closing a pane from the UI left every quiet watch armed on it. The
+watches stayed behind forever, so the pane's silence watch still fired
+about half a minute later, and a fire is relayed to the cloud exactly
+like an attention, which could become a phone notification about a pane
+that is no longer on screen. The leaked watches also kept counting
+against the per-pane and per-session caps, so a live pane holding
+nothing could be refused its very first watch, and a window attaching
+afterwards was told about watches on panes that were not in its layout.
+Closing a pane now stands its watches down the way a pane whose shell
+exits already did, silently: every viewer is told they are gone, nothing
+fires, and the budget comes back. The same holds for the panes a closed
+tab takes with it, and for a session that ends, either by its last shell
+exiting or by being killed from the drawer: it drops its watches with
+its panes instead of leaving one to fire at a session that is gone.
+
 ## [0.2.14] - 2026-09-18
 
 ### Fixed: the ctrl+r palette fits its card at every window width
