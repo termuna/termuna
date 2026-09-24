@@ -6,8 +6,142 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
-## [0.2.15] - 2026-09-22
+## [0.2.16] - 2026-09-24
 
+### Fixed: a known hosts store that cannot be read refuses the connection
+
+Board#426. Trust on first use read any failure to open the known hosts
+store as an empty store, so a store at mode 000, a directory where the
+store should be, or a data directory under a stale mount accepted
+whatever key a host presented, a changed one included, on every
+connection, silently. Only a missing store is a first contact now; any
+other failure refuses and the pane says why: "could not read the known
+hosts store at <path>: <error>; refusing to connect". The same holds
+for the other half: a first contact whose key could not be written to
+the store used to connect with nothing recorded, so the next
+connection was a first contact again and a key change would have gone
+unnoticed. It refuses now too, naming the host, the store and the
+error. A redial reads the store again on every attempt, so putting the
+mode right lets it through without a person. No protocol change.
+
+### Added: the machine stays awake while work is in flight
+
+Board#355. Closing the laptop never ended a session, but letting the
+machine suspend froze the work in it: a build stopped mid-link, an
+agent mid-tool-call, an SSH pane's far side hung up. The daemon now
+holds a power lock while, and only while, something it owns is
+genuinely in flight: a local pane's command that has run longer than
+`[power] keep_awake_after` (30 seconds, so `ls` never takes one), or,
+signed in on a paid plan, a viewer attached from elsewhere (the
+dashboard, a share link, your phone). The lock goes the moment the
+last reason ends, at `keep_awake_max` (4 hours) even with a reason
+still live, and on battery at 20 percent or below.
+
+It is said in one line: "awake: build running" or "awake: phone
+attached" in the status bar, amber for the cap's last ten minutes; the
+reason and the cap left on the continuity panel's machine row; "Let
+this machine sleep" in ctrl+k, scoped to this session, with the
+setting untouched; and a `[power]` block in Settings, Terminal, with
+`never`, `on_work` (the default) and `while_attached`, the two
+thresholds and what is held right now. All three keys travel with the
+account's settings.
+
+Linux asks logind over D-Bus (`what=idle:sleep`, `who=Termuna`, a
+`why` naming the pane, so `systemd-inhibit --list` reads what the
+status bar reads); macOS takes a `PreventUserIdleSystemSleep`
+assertion, which does not beat a closed lid, and the app says so;
+Windows sets `ES_SYSTEM_REQUIRED`. A machine where no lock can be held
+(no session manager, a refused permission, an unsupported platform)
+says so once, quietly, and the feature stays off. No protocol change.
+### Fixed: an agent session's attention follows its asks, so every ask reaches the phone
+
+A managed agent session raised `Attention{agent_approval}` on its
+first `can_use_tool` and stood it down only when a command arrived.
+A turn that ended with the ask still open (an interrupt, a mode
+switch, the CLI moving on) left the flag standing, and since the flag
+only goes up from standing down, every later ask in an autonomous run
+raised nothing: no frame for the relay and no push for the phone. And
+any command stood it down, so a "go on" typed under an open ask
+retracted a nudge for an agent that was still blocked. The flag now
+follows the ask set exactly: up on the first ask of an empty set, down
+when the set empties however it emptied (the last ask answered, the
+turn ending, a fresh process retiring the asks), and untouched by a
+message that answers nothing. Bell attention in shell panes is
+unchanged.
+
+### Fixed: saving a host no longer asks whether to discard it
+
+Pressing Save on the host card wrote the host to the vault and then
+asked "discard changes?" on the way out, because the card compared
+what it held to the empty form it opened as. A saved host is not an
+unsaved edit: the card leaves quietly, the way the snippet editor and
+the layout rename already did.
+
+### Changed: a bell on a background tab is amber, not red
+
+A tab whose program rang the bell while you were looking elsewhere
+carried a red dot, the same red as the close button and the close
+confirmation, so an agent CLI saying "I am done" looked like
+something had failed. The dot is amber now, the colour every other
+"a program wants you" signal already uses; red stays for a non-zero
+exit and a changed host key, things that actually went wrong.
+### Fixed: between two sign-in rounds the card no longer names a round zero
+
+Board#329, QA finding of 2026-09-22. When an answer arrived for a round
+the server had already closed and nothing new was waiting yet, the
+pane's challenge card printed "the server has moved on to round 0".
+Round zero is not a round, it is the gap between two of them, and the
+phone and the dashboard have always said so. The card now prints the
+same sentence they do, "That was round 2; no round is waiting now.",
+and a test pins it against both of those files so the three surfaces
+cannot drift apart again.
+
+### Added: the top of a pane's buffer says which cap ended its history
+
+Board#411. Three caps cut a session's scrollback and not one of them
+said so, so a buffer that began mid sentence looked like a session that
+had only just started. The top of a pane now carries one seam row
+naming the reason: the on-disk tail kept on this machine, the
+in-memory log this pane keeps while live, this window's own scrollback
+cap, or the session's real start with the honest "nothing was cut". It
+is the read line's marker recoloured, ink over mint, so a buffer
+holding both reads them apart at a glance. The row is chrome: it is
+never selectable, never in a copy, never in a pane export or an
+asciicast, and it adds no line to the buffer.
+
+### Added: a keepalive keeps an idle SSH link alive, read from the host card and ~/.ssh/config
+
+Nothing Termuna sent ever kept an idle SSH link alive, so a NAT box, a
+server's ClientAliveInterval or a load balancer's idle timeout could
+reap the connection and leave redial to clean up a problem that did
+not have to happen. A keepalive is now on by default for every shared
+SSH connection: every 30 seconds of silence, up to 3 unanswered tries
+before the link is called dead, about 90 seconds to name a dead path.
+The host card gets one new row, "keep the link alive", between port
+and identity: default, an explicit interval in seconds, or off, with a
+badge naming where the answer came from (this host, ~/.ssh/config, or
+the [ssh] default) when it is not the card's own choice. Settings,
+[ssh] gets the two rows behind the default, keepalive_interval and
+keepalive_max, with a hint that multiplies them out loud so nobody has
+to do the arithmetic themselves; 0 turns it off, exactly as OpenSSH
+reads ServerAliveInterval 0.
+
+Importing ~/.ssh/config now reads ServerAliveInterval, ServerAliveCountMax
+and TCPKeepAlive, and the read report names them per host, in seconds
+and tries with the unit always printed, ServerAliveInterval 0 read as
+"off" rather than as nothing. A value that is not a plain count, like
+ServerAliveInterval 15m, is never guessed at: it is quoted back
+verbatim, marked refused, and the report names the fallback the host
+gets until it is set on the host card by hand.
+
+When a keepalive goes unanswered, the pane's redial seam now says so:
+"no answer to 3 keepalives over 90 seconds" instead of a bare
+connection lost, so the sentence reads as the network and not as a
+bug in Termuna. A host with keepalives off names the write that found
+the link gone instead; a drop neither detector is confident enough to
+credit keeps the plain wording it always had.
+
+## [0.2.15] - 2026-09-22
 ### Fixed: a sign-in question is now visible on the pane's own card and the sealed lane at once
 
 Board#329, QA finding 1. A host marked interactive on its card asked
