@@ -6,7 +6,52 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.18] - 2026-09-25
+
+### Added: the daemon sends each pane's sealed picture to a relay that keeps them
+
+Part 7 of 8 of the snapshot on attach (ADR 0022, phase 2). To a relay
+whose `Welcome` says `snapshots`, the cloud bridge sends every pane's
+picture sealed with the session key, one cut for the set: after the
+attach replay, after a key rotation, after a lag resync, every 30 s
+while output has flowed, and at once after 1024 output frames. The
+relay never sees a row. A relay that does not say so, today's
+included, hears nothing new. The phone and the web viewer will attach
+on these once the relay keeps them.
+
+### Changed: coming back to a session is one paint
+
+Opening a session, and coming back to one the window had left, replayed
+the daemon's retained log into fresh emulators and painted as it
+landed: for a program that repaints in place, a film of every redraw
+since the log's start, then a size nudge and one more repaint. The
+window now attaches on each pane's picture (ADR 0022, part 5 of 8):
+the daemon sends the pane as it stands, one frame, and live output
+from there. No film, no nudge, no twitch. A daemon from before this
+release still replays, and the window still understands it.
+
+### Added: a viewer can attach on each pane's picture instead of a replay
+
+Part 4 of 8 of the snapshot on attach (ADR 0022). `Hello` and the
+local `Attach` gain a `snapshot` flag; a viewer that sets it is served
+one `Snapshot` frame per pane after `Layout` (the pane as it stands,
+with up to `snapshot_rows` of history) and live output from there: no
+fresh-terminal reset, none of that pane's output replayed, no
+repaint nudge. A viewer that does not ask, and every peer from before
+the flag, gets the replay it always did. The desktop window does not
+ask yet; part 5 makes it.
+
 ## [0.2.17] - 2026-09-25
+### Added: the daemon keeps its own picture of every pane
+
+For the snapshot a viewer will attach on instead of replaying the log
+(ADR 0022, part 3 of 8): each local pane has an emulator of its own in
+the daemon, on a thread of its own, fed every chunk the pane writes in
+log order, resized with the PTY, filled once from the retained log when
+a pane arrives with history behind it (a handoff, a resurrection), and
+dropped with the pane. `snapshot_rows` in `config.toml` (default 2 000,
+max 100 000) is the scrollback it keeps. Nothing a viewer sees changes
+yet; part 4 puts the picture on the wire.
 
 ### Fixed: a host card's icon sits on the middle of its text
 
