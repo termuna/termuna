@@ -6,6 +6,53 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.17] - 2026-09-25
+
+### Fixed: a host card's icon sits on the middle of its text
+
+The card's optional lines (agent, clipboard, forwarding, certificate)
+each left an empty placeholder when absent, and every placeholder
+still cost the column's spacing, so a two-line card was laid out as
+if four more lines sat under it and the icon settled below the
+text's middle. Absent lines take no room now.
+
+### Changed: a host card no longer says "clipboard follows the viewer"
+
+Every host card carried that line, the default every host has unless
+told otherwise, so it told nobody anything. A card now states the
+clipboard only when it is off ("clipboard off · programs may set
+nothing") or pinned ("always lands on this machine"), the two states
+worth a line.
+
+### Fixed: the history seam no longer covers the first row, and stays off a short buffer
+
+Scrolled to the top of a pane's history, "history begins here" was a
+label centred on the top edge of the first row, over its text. The
+grid now makes a row of room above the first line when the seam is
+on screen and the label sits in it, whole, the way the design draws
+the seam as a row of the flow. And a buffer that fits its screen has
+no history above it, so it draws no seam at all: a shell that never
+scrolled no longer carries "the full session from 12:24" over its
+first prompt.
+
+### Fixed: the continuity panel's keep-awake line ends in an ellipsis
+
+"awake: command running, 3h 21m left" ran off the panel's right edge
+with no sign it went on. The line is elided with "…" to the panel's
+width, as the design's `.aw` line is.
+
+### Added: an agent's finished reply nudges the phone
+
+A managed agent session raised attention only when the agent asked
+for a tool; a reply that ended with nothing to ask raised nothing, so
+a phone in a pocket never heard that the agent was done. The end of a
+turn now raises "needs input": the agent has answered and waits for
+the next message, the way a finished command does for a shell, under
+the same quiet gate as a bell (a reply that lands while you typed
+into the session within the last ten seconds nudges nobody). The next
+message stands it down. An ask that survives the turn keeps its own
+kind.
+
 ## [0.2.16] - 2026-09-24
 
 ### Fixed: a known hosts store that cannot be read refuses the connection
