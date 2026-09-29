@@ -6,6 +6,23 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.19] - 2026-09-29
+
+### Fixed: a session opened after a long while came up blank until something resized it
+
+A pane whose program is on the alternate screen (Claude Code, an
+editor, a pager) and that nobody had looked at since the daemon's last
+upgrade opened as an empty screen, on the desktop as on the phone and
+the web; toggling a sidebar, anything that resized it, made the
+program draw and the pane appear. The daemon's picture of such a pane
+(ADR 0022) had been filled from the log alone at the handoff, and the
+log keeps nothing of the alternate screen on purpose, so the picture
+was an empty one. Now a pane in that state is asked to draw again, the
+way a replay viewer always asked full-screen programs to: a resize by
+one column and back, once, right after the handoff and again for a
+viewer that attaches before the program has drawn. The picture fills
+in and stays right from there.
+
 ## [0.2.18] - 2026-09-25
 
 ### Added: the daemon sends each pane's sealed picture to a relay that keeps them
