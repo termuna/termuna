@@ -6,6 +6,16 @@ versioning: [SemVer](https://semver.org/) once we hit 0.2 (M2).
 
 ## [Unreleased]
 
+## [0.2.20] - 2026-10-02
+
+### Changed: closing a tab that still runs something asks with the app's own dialog
+
+The question used to be a red band wedged between the tab strip and
+the grid, with its own two small buttons. It is now the same card
+every other decision in the app uses (sign out, discard changes,
+delete): a heading, one line on what closing does, the tab's name as
+a chip, esc and Cancel to keep it, and one "Close anyway".
+
 ## [0.2.19] - 2026-09-29
 
 ### Fixed: a session opened after a long while came up blank until something resized it
